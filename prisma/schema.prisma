@@ -1,0 +1,124 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id            String @id @default(uuid())
+  name          String?
+  email         String? @unique
+  emailVerified DateTime?
+  image         String?
+  password      String? // optional as social login does not require password
+
+  playlists       Playlist[] // The song the user has uploaded
+  songs           Song[] // The playlist the user has created
+  likedPlaylists  LikesOnPlaylists[]
+  likedSongs      LikesOnSongs[]
+  inviteLinks     Sponsorship[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Song {
+  id        String @id @default(uuid())
+  name      String @unique
+  imageUrl  String @db.Text
+  songUrl   String @db.Text
+  artist    String
+
+  // The user that uploaded the song
+  profile   Profile @relation(fields: [profileId], references: [id])
+  profileId String
+
+  likesOnSongs     LikesOnSongs[] // likes on this song
+  songsOnPlaylists SongsOnPlaylists[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+}
+
+enum PlaylistType {
+  PLAYLIST
+  ALBUM
+}
+
+// on CREATE, UPDATE, DELETE : if before.songs != after.songs, recalculate artists
+model Playlist {
+  id       String       @id @default(uuid())
+  name     String
+  imageUrl String       @db.Text
+  type     PlaylistType
+  artist   String       @db.Text
+
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  likesOnPlaylists LikesOnPlaylists[]
+  songsOnPlaylists SongsOnPlaylists[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+}
+
+// ManyToMany relations links
+
+model LikesOnSongs {
+  song       Song     @relation(fields: [songId], references: [id])
+  songId     String // relation scalar field (used in the `@relation` attribute above)
+  profile    Profile  @relation(fields: [profileId], references: [id])
+  profileId  String // relation scalar field (used in the `@relation` attribute above)
+  assignedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@id([songId, profileId])
+}
+
+model LikesOnPlaylists {
+  playlist   Playlist @relation(fields: [playlistId], references: [id])
+  playlistId String // relation scalar field (used in the `@relation` attribute above)
+  profile    Profile  @relation(fields: [profileId], references: [id])
+  profileId  String // relation scalar field (used in the `@relation` attribute above)
+  assignedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@id([playlistId, profileId])
+}
+
+model SongsOnPlaylists {
+  song       Song     @relation(fields: [songId], references: [id])
+  songId     String
+  playlist   Playlist @relation(fields: [playlistId], references: [id])
+  playlistId String
+  assignedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@id([playlistId, songId])
+}
+
+model Sponsorship {
+  id        String    @id @default(uuid())
+  profileId String?   // first time user is created, this is null
+  profile   Profile?  @relation(fields: [profileId], references: [id])
+  value     String    @unique @default(uuid())
+
+  createdAt DateTime  @default(now())
+  @@index([profileId])
+}
